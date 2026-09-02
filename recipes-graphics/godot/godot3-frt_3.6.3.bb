@@ -56,7 +56,7 @@ do_compile() {
         CXX="${CXX}" CXXFLAGS="${CXXFLAGS}" \
         LINK="${CXX}" LINKFLAGS="${LDFLAGS}" \
         AR="${AR}" RANLIB="${RANLIB}" \
-        PKG_CONFIG="${PKG_CONFIG}"
+        pkg_config="${PKG_CONFIG}"
 }
 
 do_install() {

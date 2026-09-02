@@ -1,25 +1,33 @@
 From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: Active ESL <engineering@active-esl.com>
 Date: Wed, 2 Sep 2026 14:00:00 +0100
-Subject: [PATCH] frt: use pkg-config for SDL2
+Subject: [PATCH] frt: use the configured pkg-config for SDL2
 
-Yocto exposes target dependencies through pkg-config. Avoid relying on the
-host-oriented sdl2-config helper during cross compilation.
+Yocto exposes target dependencies through a sysroot-aware pkg-config wrapper.
+Preserve its environment and avoid querying the build host during cross
+compilation.
 
 Upstream-Status: Inappropriate [Yocto-specific]
 ---
- platform/frt/SCsub | 2 +-
- 1 file changed, 1 insertion(+), 1 deletion(-)
+ platform/frt/SCsub | 9 ++++++++-
+ 1 file changed, 8 insertions(+), 1 deletion(-)
 
 diff --git a/platform/frt/SCsub b/platform/frt/SCsub
 index 84b73ee..1019179 100644
 --- a/platform/frt/SCsub
 +++ b/platform/frt/SCsub
-@@ -40,5 +40,5 @@ env.TEXT('license.gen.cc', 'LICENSE')
+@@ -40,5 +40,12 @@ env.TEXT('license.gen.cc', 'LICENSE')
  
  frt_env = env.Clone()
 -frt_env.ParseConfig('sdl2-config --cflags --libs')
-+frt_env.ParseConfig('pkg-config sdl2 --cflags --libs')
++# SCons restricts the environment passed to subprocesses. Preserve the
++# variables required by cross pkg-config and let packaging select its wrapper.
++import os
++for key in ['PKG_CONFIG_PATH', 'PKG_CONFIG_SYSROOT_DIR', 'PKG_CONFIG_LIBDIR']:
++    if key in os.environ:
++        frt_env['ENV'][key] = os.environ[key]
++pkg_config = ARGUMENTS.get('pkg_config', 'pkg-config')
++frt_env.ParseConfig('%s sdl2 --cflags --libs' % pkg_config)
  
  common_sources = [ 'frt_exe.cc', 'frt.cc', 'license.gen.cc' ]
 -- 
