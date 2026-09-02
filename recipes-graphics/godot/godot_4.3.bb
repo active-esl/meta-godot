@@ -27,6 +27,7 @@ SRC_URI = " \
     git://github.com/godotengine/godot.git;protocol=https;lfs=0;branch=master \
     file://0001-wayland-thread.patch \
     file://0002-enable-clang.patch \
+    file://0003-egl-select-api-compatible-window-config.patch \
 "
 
 S = "${WORKDIR}/git"

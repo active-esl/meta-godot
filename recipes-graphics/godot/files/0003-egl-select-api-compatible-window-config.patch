@@ -1,0 +1,66 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Active ESL <engineering@active-esl.com>
+Date: Wed, 2 Sep 2026 10:00:00 +0100
+Subject: [PATCH] egl: select an API-compatible window configuration
+
+Some EGL implementations, including Vivante on i.MX8M, expose configs for
+multiple client APIs.  Selecting the first config based only on colour and
+depth can return a config that cannot create the requested GLES 3 context,
+causing EGL_BAD_MATCH.
+
+Require window-surface support and the renderable type for the API bound by
+the platform manager.  Also fix the layered attribute list's duplicated
+green component.
+
+Upstream-Status: Pending
+---
+ drivers/egl/egl_manager.cpp | 20 +++++++++++++++-----
+ 1 file changed, 15 insertions(+), 5 deletions(-)
+
+diff --git a/drivers/egl/egl_manager.cpp b/drivers/egl/egl_manager.cpp
+index 9c1d083..1a280c1 100644
+--- a/drivers/egl/egl_manager.cpp
++++ b/drivers/egl/egl_manager.cpp
+@@ -154,24 +154,34 @@ EGLsizeiANDROID EGLManager::_get_cache(const void *p_key, EGLsizeiANDROID p_key_
+ #endif
+ 
+ Error EGLManager::_gldisplay_create_context(GLDisplay &p_gldisplay) {
++	const EGLint renderable_type = _get_platform_api_enum() == EGL_OPENGL_ES_API ? EGL_OPENGL_ES3_BIT_KHR : EGL_OPENGL_BIT;
++
+ 	EGLint attribs[] = {
++		EGL_SURFACE_TYPE,
++		EGL_WINDOW_BIT,
++		EGL_RENDERABLE_TYPE,
++		renderable_type,
+ 		EGL_RED_SIZE,
+-		1,
+-		EGL_BLUE_SIZE,
+-		1,
++		8,
+ 		EGL_GREEN_SIZE,
+-		1,
++		8,
++		EGL_BLUE_SIZE,
++		8,
+ 		EGL_DEPTH_SIZE,
+ 		24,
+ 		EGL_NONE,
+ 	};
+ 
+ 	EGLint attribs_layered[] = {
++		EGL_SURFACE_TYPE,
++		EGL_WINDOW_BIT,
++		EGL_RENDERABLE_TYPE,
++		renderable_type,
+ 		EGL_RED_SIZE,
+ 		8,
+ 		EGL_GREEN_SIZE,
+ 		8,
+-		EGL_GREEN_SIZE,
++		EGL_BLUE_SIZE,
+ 		8,
+ 		EGL_ALPHA_SIZE,
+ 		8,
+-- 
+2.43.0
+
