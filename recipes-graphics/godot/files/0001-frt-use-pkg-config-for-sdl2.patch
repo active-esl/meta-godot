@@ -1,0 +1,26 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Active ESL <engineering@active-esl.com>
+Date: Wed, 2 Sep 2026 14:00:00 +0100
+Subject: [PATCH] frt: use pkg-config for SDL2
+
+Yocto exposes target dependencies through pkg-config. Avoid relying on the
+host-oriented sdl2-config helper during cross compilation.
+
+Upstream-Status: Inappropriate [Yocto-specific]
+---
+ platform/frt/SCsub | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/platform/frt/SCsub b/platform/frt/SCsub
+index 84b73ee..1019179 100644
+--- a/platform/frt/SCsub
++++ b/platform/frt/SCsub
+@@ -40,5 +40,5 @@ env.TEXT('license.gen.cc', 'LICENSE')
+ 
+ frt_env = env.Clone()
+-frt_env.ParseConfig('sdl2-config --cflags --libs')
++frt_env.ParseConfig('pkg-config sdl2 --cflags --libs')
+ 
+ common_sources = [ 'frt_exe.cc', 'frt.cc', 'license.gen.cc' ]
+-- 
+2.43.0
