@@ -1,0 +1,28 @@
+From: Active ESL <engineering@active-esl.com>
+Subject: [PATCH] frt: link compiler atomic helpers
+
+Clang emits calls to __atomic_is_lock_free for Godot core on aarch64. Add
+libatomic while configuring the FRT platform so it reaches the final program
+link environment; SCsub clones do not propagate libraries back to that link.
+
+Upstream-Status: Inappropriate [Yocto toolchain integration]
+
+---
+ platform/frt/detect.py | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/platform/frt/detect.py b/platform/frt/detect.py
+index 0278f20..560373a 100644
+--- a/platform/frt/detect.py
++++ b/platform/frt/detect.py
+@@ -69,7 +69,7 @@ def configure_misc(env):
+ 	env.Append(CPPPATH=['#platform/frt'])
+ 	env.Append(CPPFLAGS=['-DUNIX_ENABLED', '-DGLES_ENABLED', '-DJOYDEV_ENABLED'])
+ 	env.Append(CPPFLAGS=['-DFRT_ENABLED'])
+-	env.Append(LIBS=['pthread', 'z', 'dl'])
++	env.Append(LIBS=['pthread', 'z', 'dl', 'atomic'])
+ 	if env['use_static_cpp']:
+ 		env.Append(LINKFLAGS=['-static-libgcc', '-static-libstdc++'])
+ 	env['ENV']['PATH'] = os.getenv('PATH')
+-- 
+2.43.0

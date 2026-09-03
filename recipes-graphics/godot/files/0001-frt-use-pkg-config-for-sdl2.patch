@@ -9,14 +9,14 @@ compilation.
 
 Upstream-Status: Inappropriate [Yocto-specific]
 ---
- platform/frt/SCsub | 10 +++++++++-
- 1 file changed, 9 insertions(+), 1 deletion(-)
+ platform/frt/SCsub | 9 ++++++++-
+ 1 file changed, 8 insertions(+), 1 deletion(-)
 
 diff --git a/platform/frt/SCsub b/platform/frt/SCsub
 index 84b73ee..1019179 100644
 --- a/platform/frt/SCsub
 +++ b/platform/frt/SCsub
-@@ -40,5 +40,13 @@ env.TEXT('license.gen.cc', 'LICENSE')
+@@ -40,5 +40,12 @@ env.TEXT('license.gen.cc', 'LICENSE')
  
  frt_env = env.Clone()
 -frt_env.ParseConfig('sdl2-config --cflags --libs')
@@ -28,7 +28,6 @@ index 84b73ee..1019179 100644
 +        frt_env['ENV'][key] = os.environ[key]
 +pkg_config = ARGUMENTS.get('pkg_config', 'pkg-config')
 +frt_env.ParseConfig('%s sdl2 --cflags --libs' % pkg_config)
-+frt_env.Append(LIBS=['atomic'])
  
  common_sources = [ 'frt_exe.cc', 'frt.cc', 'license.gen.cc' ]
 -- 
