@@ -1,0 +1,181 @@
+From 8c19f0d5d65d2f6c6ad6f0bd313b801e58206800 Mon Sep 17 00:00:00 2001
+From: Alex J Lennon <ajlennon@dynamicdevices.co.uk>
+Date: Thu, 3 Sep 2026 11:05:00 +0100
+Subject: [PATCH] frt: add native SDL multitouch input
+
+FRT only handled SDL mouse events. SDL's touch-to-mouse compatibility path
+cannot represent more than one finger, and button events were positioned from
+the last mouse-motion event rather than SDL_MouseButtonEvent coordinates.
+
+Forward SDL finger events as Godot ScreenTouch/ScreenDrag events using stable
+per-contact indices and drawable-size coordinates. Also take pointer button
+coordinates from the button event itself.
+
+Upstream-Status: Pending
+---
+diff --git a/frt_godot.cc b/frt_godot.cc
+index 3cd90b7..6145b25 100644
+--- a/frt_godot.cc
++++ b/frt_godot.cc
+@@ -373,7 +373,7 @@ public: // EventHandler
+ 		mouse_motion->set_relative(reli);
+ 		input_->parse_input_event(mouse_motion);
+ 	}
+-	void handle_mouse_button_event(int os_button, bool pressed, bool doubleclick) override {
++	void handle_mouse_button_event(int os_button, ivec2 pos, bool pressed, bool doubleclick) override {
+ 		int button = map_mouse_os_button(os_button);
+ 		int bit = (1 << (button - 1));
+ 		if (pressed)
+@@ -383,7 +383,8 @@ public: // EventHandler
+ 		Ref<InputEventMouseButton> mouse_button;
+ 		mouse_button.instance();
+ 		fill_modifier_state(mouse_button);
+-		Point2i posi(mouse_pos_.x, mouse_pos_.y);
++		mouse_pos_ = Point2(pos.x, pos.y);
++		Point2i posi(pos.x, pos.y);
+ 		mouse_button->set_position(posi);
+ 		mouse_button->set_global_position(posi);
+ 		mouse_button->set_button_index(button);
+@@ -392,6 +393,23 @@ public: // EventHandler
+ 		mouse_button->set_pressed(pressed);
+ 		input_->parse_input_event(mouse_button);
+ 	}
++	void handle_touch_event(int index, ivec2 pos, bool pressed) override {
++		Ref<InputEventScreenTouch> touch;
++		touch.instance();
++		touch->set_index(index);
++		touch->set_position(Point2(pos.x, pos.y));
++		touch->set_pressed(pressed);
++		input_->parse_input_event(touch);
++	}
++	void handle_touch_motion_event(int index, ivec2 pos, ivec2 dpos) override {
++		Ref<InputEventScreenDrag> drag;
++		drag.instance();
++		drag->set_index(index);
++		drag->set_position(Point2(pos.x, pos.y));
++		drag->set_relative(Point2(dpos.x, dpos.y));
++		drag->set_speed(input_->get_last_mouse_speed());
++		input_->parse_input_event(drag);
++	}
+ 	void handle_js_status_event(int id, bool connected, const char *name, const char *guid) override {
+ 		input_->joy_connection_changed(id, connected, name, guid);
+ 	}
+diff --git a/sdl2_adapter.h b/sdl2_adapter.h
+index 033e344..c4a1ff5 100644
+--- a/sdl2_adapter.h
++++ b/sdl2_adapter.h
+@@ -166,7 +166,9 @@ struct EventHandler {
+ 	virtual void handle_resize_event(ivec2 size) = 0;
+ 	virtual void handle_key_event(int sdl2_code, int unicode, bool pressed) = 0;
+ 	virtual void handle_mouse_motion_event(ivec2 pos, ivec2 dpos) = 0;
+-	virtual void handle_mouse_button_event(int button, bool pressed, bool doubleclick) = 0;
++	virtual void handle_mouse_button_event(int button, ivec2 pos, bool pressed, bool doubleclick) = 0;
++	virtual void handle_touch_event(int index, ivec2 pos, bool pressed) = 0;
++	virtual void handle_touch_motion_event(int index, ivec2 pos, ivec2 dpos) = 0;
+ 	virtual void handle_js_status_event(int id, bool connected, const char *name, const char *guid) = 0;
+ 	virtual void handle_js_button_event(int id, int button, bool pressed) = 0;
+ 	virtual void handle_js_axis_event(int id, int axis, float value) = 0;
+@@ -218,6 +220,7 @@ ExitShortcut parse_exit_shortcut() {
+ class OS_FRT {
+ private:
+ 	static const int MAX_JOYSTICKS = 16;
++	static const int MAX_TOUCHES = 10;
+ 	static const int REQUEST_UNICODE = -1;
+ 	SDL_Window *window_;
+ 	SDL_GLContext context_;
+@@ -229,6 +232,8 @@ private:
+ 	SDL_Joystick *js_[MAX_JOYSTICKS];
+ 	uint64_t rumble_timestamp_[MAX_JOYSTICKS];
+ 	uint32_t rumble_supported_;
++	SDL_FingerID touch_fingers_[MAX_TOUCHES];
++	bool touch_active_[MAX_TOUCHES];
+ 	ExitShortcut exit_shortcut_;
+ 	void resize_event(const SDL_Event &ev) {
+ 		ivec2 size;
+@@ -304,8 +309,10 @@ private:
+ 				os_button = WheelDown;
+ 			else
+ 				return;
+-			handler_->handle_mouse_button_event(os_button, true, false);
+-			handler_->handle_mouse_button_event(os_button, false, false);
++			ivec2 pos = { 0, 0 };
++			SDL_GetMouseState(&pos.x, &pos.y);
++			handler_->handle_mouse_button_event(os_button, pos, true, false);
++			handler_->handle_mouse_button_event(os_button, pos, false, false);
+ 		} else { // SDL_MOUSEBUTTONUP, SDL_MOUSEBUTTONDOWN
+ 			switch (ev.button.button) {
+ 			case SDL_BUTTON_LEFT:
+@@ -320,7 +327,48 @@ private:
+ 			default:
+ 				return;
+ 			}
+-			handler_->handle_mouse_button_event(os_button, ev.button.state == SDL_PRESSED, ev.button.clicks > 1);
++			ivec2 pos = { ev.button.x, ev.button.y };
++			handler_->handle_mouse_button_event(os_button, pos, ev.button.state == SDL_PRESSED, ev.button.clicks > 1);
++		}
++	}
++	int touch_index(SDL_FingerID finger, bool allocate) {
++		for (int i = 0; i < MAX_TOUCHES; i++)
++			if (touch_active_[i] && touch_fingers_[i] == finger)
++				return i;
++		if (allocate)
++			for (int i = 0; i < MAX_TOUCHES; i++)
++				if (!touch_active_[i]) {
++					touch_active_[i] = true;
++					touch_fingers_[i] = finger;
++					return i;
++				}
++		return -1;
++	}
++	ivec2 touch_position(float x, float y) {
++		ivec2 size;
++		SDL_GL_GetDrawableSize(window_, &size.x, &size.y);
++		ivec2 pos = { (int)(x * size.x), (int)(y * size.y) };
++		if (pos.x < 0) pos.x = 0;
++		if (pos.y < 0) pos.y = 0;
++		if (pos.x >= size.x) pos.x = size.x - 1;
++		if (pos.y >= size.y) pos.y = size.y - 1;
++		return pos;
++	}
++	void touch_event(const SDL_TouchFingerEvent &finger) {
++		bool pressed = finger.type != SDL_FINGERUP;
++		int index = touch_index(finger.fingerId, finger.type == SDL_FINGERDOWN);
++		if (index < 0)
++			return;
++		ivec2 pos = touch_position(finger.x, finger.y);
++		if (finger.type == SDL_FINGERMOTION) {
++			ivec2 size;
++			SDL_GL_GetDrawableSize(window_, &size.x, &size.y);
++			ivec2 dpos = { (int)(finger.dx * size.x), (int)(finger.dy * size.y) };
++			handler_->handle_touch_motion_event(index, pos, dpos);
++		} else {
++			handler_->handle_touch_event(index, pos, pressed);
++			if (!pressed)
++				touch_active_[index] = false;
+ 		}
+ 	}
+ 	int get_js_id(int inst_id) {
+@@ -411,6 +459,8 @@ private:
+ 	}
+ public:
+ 	OS_FRT(EventHandler *handler) : handler_(handler) {
++		for (int i = 0; i < MAX_TOUCHES; i++)
++			touch_active_[i] = false;
+ 		mouse_mode_ = MouseVisible;
+ 		key_unicode_ = 0;
+ 		memset(js_, 0, sizeof(js_));
+@@ -484,6 +534,11 @@ public:
+ 			case SDL_MOUSEBUTTONDOWN:
+ 				mouse_event(ev);
+ 				break;
++			case SDL_FINGERDOWN:
++			case SDL_FINGERMOTION:
++			case SDL_FINGERUP:
++				touch_event(ev.tfinger);
++				break;
+ 			case SDL_JOYAXISMOTION:
+ 			case SDL_JOYHATMOTION:
+ 			case SDL_JOYBUTTONDOWN:
+-- 
+2.43.0
+
