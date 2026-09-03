@@ -13,10 +13,10 @@ coordinates from the button event itself.
 
 Upstream-Status: Pending
 ---
-diff --git a/frt_godot.cc b/frt_godot.cc
+diff --git a/platform/frt/frt_godot.cc b/platform/frt/frt_godot.cc
 index 3cd90b7..6145b25 100644
---- a/frt_godot.cc
-+++ b/frt_godot.cc
+--- a/platform/frt/frt_godot.cc
++++ b/platform/frt/frt_godot.cc
 @@ -373,7 +373,7 @@ public: // EventHandler
  		mouse_motion->set_relative(reli);
  		input_->parse_input_event(mouse_motion);
@@ -60,10 +60,10 @@ index 3cd90b7..6145b25 100644
  	void handle_js_status_event(int id, bool connected, const char *name, const char *guid) override {
  		input_->joy_connection_changed(id, connected, name, guid);
  	}
-diff --git a/sdl2_adapter.h b/sdl2_adapter.h
+diff --git a/platform/frt/sdl2_adapter.h b/platform/frt/sdl2_adapter.h
 index 033e344..c4a1ff5 100644
---- a/sdl2_adapter.h
-+++ b/sdl2_adapter.h
+--- a/platform/frt/sdl2_adapter.h
++++ b/platform/frt/sdl2_adapter.h
 @@ -166,7 +166,9 @@ struct EventHandler {
  	virtual void handle_resize_event(ivec2 size) = 0;
  	virtual void handle_key_event(int sdl2_code, int unicode, bool pressed) = 0;
@@ -178,4 +178,3 @@ index 033e344..c4a1ff5 100644
  			case SDL_JOYBUTTONDOWN:
 -- 
 2.43.0
-
