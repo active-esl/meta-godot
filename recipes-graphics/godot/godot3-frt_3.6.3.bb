@@ -21,6 +21,7 @@ SRC_URI = " \
     git://github.com/efornara/godot3.git;protocol=https;lfs=0;branch=frt;name=godot \
     git://github.com/efornara/frt.git;protocol=https;lfs=0;branch=master;name=frt;destsuffix=git/platform/frt \
     file://0001-frt-use-pkg-config-for-sdl2.patch \
+    file://0002-frt-add-native-multitouch-input.patch \
 "
 
 # FRT 3.6.3-1 and its matching Godot 3 fork, pinned for reproducibility.
